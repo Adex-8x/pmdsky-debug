@@ -4,20 +4,11 @@
 #define HEADERS_TYPES_COMMON_H_
 
 #include "enums.h"
+#include "util.h"
 #include "../dungeon_mode/dungeon_mode_common.h"
 #include "file_io.h"
-
-// A slice in the usual programming sense: a pointer, length, and capacity.
-// Used for the implementation of vsprintf(3), but maybe it's used elsewhere as well.
-struct slice {
-    void* data;        // Pointer to the data buffer
-    uint32_t capacity; // How much space is available in total
-    uint32_t length;   // How much space is currently filled
-};
-ASSERT_SIZE(struct slice, 12);
-
-// Function to append data to a struct slice, and return a success flag.
-typedef bool (*slice_append_fn_t)(struct slice* slice, void* data, uint32_t data_len);
+#include "graphics.h"
+#include "../files/wan.h"
 
 // Program position info (basically stack trace info) for debug logging.
 struct prog_pos_info {
@@ -53,7 +44,7 @@ struct mem_block {
     uint32_t allocator_flags_unused : 28;
 
     // 0x8: Flags passed by the user to the memory allocator API functions when this block was
-    // allocated. The least significant byte are reserved for specifying the memory arena to use,
+    // allocated. The least significant byte is reserved for specifying the memory arena to use,
     // and have functionality determined by the arena locator function currently in use by the
     // game. The upper bytes are the same as the internal memory allocator flags
     // (just left-shifted by 8).
@@ -95,6 +86,10 @@ struct mem_alloc_table {
     struct mem_arena default_arena; // 0x4: The default memory arena for allocations
     // Not actually sure how long this array is, but has at least 4 elements, and can't have
     // more than 8 because it would overlap with default_arena.data
+    // The 4 known arenas are:
+    // - The default arena (used for most things, including dungeon mode)
+    // - Two ground mode arenas (used in some cases, but not all)
+    // - The sound data arena (used by the DSE sound engine)
     struct mem_arena* arenas[8]; // 0x20: Array of global memory arenas
 };
 ASSERT_SIZE(struct mem_alloc_table, 64);
@@ -109,14 +104,6 @@ struct mem_arena_getters {
     get_free_arena_fn_t get_free_arena;   // Arena to be used by MemFree
 };
 ASSERT_SIZE(struct mem_arena_getters, 8);
-
-// 64-bit signed fixed-point number with 16 fraction bits.
-// Represents the number ((upper << 16) + (lower >> 16) + (lower & 0xFFFF) * 2^-16)
-struct fx64 {
-    int32_t upper;  // sign bit, plus the 31 most significant integer bits
-    uint32_t lower; // the 32 least significant bits (16 integer + 16 fraction)
-};
-ASSERT_SIZE(struct fx64, 8);
 
 struct overlay_load_entry {
     enum overlay_group_id group;
@@ -143,26 +130,58 @@ struct dialog_box {
 };
 ASSERT_SIZE(struct dialog_box, 224);
 
-// Structure for dialog boxes with portraits?
+// Represents the state of a portrait to be displayed inside a dialogue box
 struct portrait_box {
-    undefined field_0x0;
-    undefined field_0x1;
-    undefined field_0x2;
-    undefined field_0x3;
-    undefined field_0x4;
-    undefined field_0x5;
-    undefined field_0x6;
-    undefined field_0x7;
-    undefined field_0x8;
-    undefined field_0x9;
-    undefined field_0xa;
-    undefined field_0xb;
-    undefined field_0xc;
-    undefined field_0xd;
-    undefined field_0xe;
-    undefined field_0xf;
+    struct monster_id_16 monster_id; // 0x0: The species id, or the set index inside kaomado.kao
+    // 0x2: Index of the emote in the species set of portraits
+    struct portrait_emotion_8 portrait_emotion;
+    uint8_t layout_idx; // 0x3: Represents the current layout to display the portrait
+    uint32_t offset_x;  // 0x4: Tile offset (x / 8) in the X axis to draw the portrait
+    uint32_t offset_y;  // 0x8: Tile offset (y / 8) in the Y axis to draw the portrait
+    bool try_flip;      // 0xC: Whether to try to get a flipped portrait from kaomado.kao
+    bool has_flip;      // 0xD: Whether the specified emote has a flipped variant
+    bool hw_flip;       // 0xE: Whether the portrait should be flipped using the hardware
+    bool allow_default; // 0xF: If true, try using emote index 0 if the desired emote can't be found
 };
 ASSERT_SIZE(struct portrait_box, 16);
+
+// Identifies a default position for a portrait, as well as whether it'll be flipped
+struct portrait_layout {
+    int16_t offset_x;
+    int16_t offset_y;
+    bool try_flip;
+    uint8_t _padding;
+};
+ASSERT_SIZE(struct portrait_layout, 6);
+
+// Holds portrait image data loaded from kaomado.kao.
+// See https://projectpokemon.org/home/docs/mystery-dungeon-nds/kaomadokao-file-format-r54/
+struct kaomado_buffer {
+    struct rgb palette[16];    // Buffer to load the palette of the portrait
+    uint8_t at4px_buffer[800]; // Buffer to load the portrait image data
+};
+ASSERT_SIZE(struct kaomado_buffer, 848);
+
+// Stores data and state for a specialized Kaomado canvas for rendering portraits
+struct portrait_canvas {
+    uint8_t canvas_handle;
+    uint8_t _padding_0x1;
+    uint8_t _padding_0x2;
+    uint8_t _padding_0x3;
+    enum portrait_canvas_state state;
+    // The buffer_state is the one that receives and stores any commits,
+    // but render_state is only set to the value of buffer_state during
+    // the Kaomado canvas update function
+    struct portrait_box render_state;
+    struct portrait_box buffer_state;
+    bool updated;
+    bool hide;
+    bool framed;
+    uint8_t _padding_0x2b;
+    uint32_t palette_idx;
+    struct kaomado_buffer buffer;
+};
+ASSERT_SIZE(struct portrait_canvas, 896);
 
 // These flags are shared with the function to display text inside message boxes
 // So they might need a rename once more information is found
@@ -390,6 +409,19 @@ struct team_member_table {
     struct team_id_8 active_team; // 0x9877: Currently active team
 };
 ASSERT_SIZE(struct team_member_table, 39032);
+
+// Contains information about a monster's level-up data at a certain level
+struct level_up_entry {
+    uint32_t total_exp; // 0x0: Total EXP required to reach this level
+    uint16_t hp;        // 0x4: HP increase
+    uint8_t atk;        // 0x6: Atk increase
+    uint8_t sp_atk;     // 0x7: Sp. Atk increase
+    uint8_t def;        // 0x8: Def increase
+    uint8_t sp_def;     // 0x9: Sp. Def increase
+    undefined field_0xA;
+    undefined field_0xB;
+};
+ASSERT_SIZE(struct level_up_entry, 12);
 
 // A common structure for pairs of dungeon/floor values
 struct dungeon_floor_pair {
@@ -640,7 +672,9 @@ ASSERT_SIZE(struct unk_dungeon_init, 232);
 struct dungeon_init {
     struct dungeon_id_8 id; // 0x0: Copied into dungeon::id
     uint8_t floor;          // 0x1: Copied into dungeon::floor
-    undefined2 field_0x2;   // Copied into dungeon::field_0x74C
+    // Copied into dungeon::field_0x74C, might be related to the dungeon being conquered or
+    // the fixed room overrides.
+    undefined2 field_0x2;
     undefined field_0x4;
     bool nonstory_flag;      // 0x5: Copied into dungeon::nonstory_flag
     bool recruiting_enabled; // 0x6: Copied into dungeon::recruiting_enabled
@@ -665,8 +699,9 @@ struct dungeon_init {
     // [EU]0x22DFBAC loads this as a signed byte
     // ???
     undefined4 field_0x14; // Copied into dungeon::field_0x750
-    // Copied into dungeon::field_0x754, and into dungeon::field_0x7A0 during rescues
-    undefined4 field_0x18;
+    // 0x18: The dungeon PRNG preseed? Copied into dungeon::prng_preseed_23_bit and
+    // dungeon::rescue_prng_preseed_23_bit.
+    uint32_t prng_preseed_23_bit;
     // 0x1C: Array containing the list of quest pokémon that will join the team in the dungeon
     // (max 2)
     struct ground_monster guest_pokemon[2];
@@ -680,10 +715,10 @@ struct dungeon_init {
     struct item_id_16 help_item;
     undefined field_0xAA;
     undefined field_0xAB;
-    bool boost_max_money_amount; // 0xAC: Copied into dungeon::boost_max_money_amount
-    undefined field_0xAD;
-    undefined field_0xAE;
-    undefined field_0xAF;
+    // 0xAC: Controls which version of the dungeon to load. Gets copied into
+    // dungeon::dungeon_game_version_id. Uncertain when the game decides to load the
+    // Time/Darkness version of dungeons.
+    enum game_id dungeon_game_version_id;
     undefined4 field_0xB0;
     undefined field_0xB4; // Gets set to dungeon::id during dungeon init
     undefined field_0xB5; // Gets set to dungeon::floor during dungeon init
@@ -761,20 +796,6 @@ struct adventure_log {
     uint16_t padding;                        // 0x27A
 };
 ASSERT_SIZE(struct adventure_log, 636);
-
-// a 2d uint (32bit) vector
-struct uvec2 {
-    uint32_t x;
-    uint32_t y;
-};
-ASSERT_SIZE(struct uvec2, 8);
-
-// a 2d int (32bit) vector
-struct vec2 {
-    int32_t x;
-    int32_t y;
-};
-ASSERT_SIZE(struct vec2, 8);
 
 struct exclusive_item_stat_boost_entry {
     int8_t atk;
@@ -859,15 +880,6 @@ struct quiz_answer_points_entry {
 ASSERT_SIZE(struct quiz_answer_points_entry, 16);
 
 // Unverified, ported from Irdkwia's notes
-struct portrait_data_entry {
-    int16_t xpos;
-    int16_t ypos;
-    uint8_t portrait;
-    uint8_t _padding;
-};
-ASSERT_SIZE(struct portrait_data_entry, 6);
-
-// Unverified, ported from Irdkwia's notes
 struct status_description {
     int16_t name_str_id;
     int16_t desc_str_id;
@@ -888,6 +900,93 @@ struct version_exclusive_monster {
     bool in_eod; // In Explorers of Darkness
 };
 ASSERT_SIZE(struct version_exclusive_monster, 4);
+
+// An entry correspond to sprite loaded in memory and ready to be displayed
+struct wan_table_entry {
+    char path[32];                  // 0x0: Needs to be null-terminated. Only used for direct file.
+    bool file_externally_allocated; // 0x20: True if the iov_base shouldn’t be freed by this struct.
+    struct wan_source_type_8 source_type; // 0x21: 1 = direct file, 2 = pack file
+    int16_t pack_id;                      // 0x22: for wan in pack file
+    int16_t file_index;                   // 0x24: for wan in pack file
+    undefined field5_0x26;
+    undefined field6_0x27;
+    uint32_t iov_len;
+    // 0x2C: When removing a reference, if it reaches 0, the entry is removed (unless
+    // file_externally_allocated is true, as it is always removed even if there are remaining
+    // references)
+    int16_t reference_counter;
+    undefined field9_0x2e;
+    undefined field10_0x2f;
+    // 0x30: pointer to the beginning of the data section of iov_base.
+    struct wan_header* sprite_start;
+    void* iov_base; // 0x34: points to a sirO
+};
+ASSERT_SIZE(struct wan_table_entry, 56);
+
+// Global structure used to deduplicate loading of wan sprites. Loaded sprites are
+// reference-counted.
+struct wan_table {
+    struct wan_table_entry sprites[96]; // 0x0
+    void* at_decompress_scratch_space;  // 0x1500
+    undefined field2_0x1504;
+    undefined field3_0x1505;
+    undefined field4_0x1506;
+    undefined field5_0x1507;
+    int16_t total_nb_of_entries;  // 0x1508: The total number of entries. Should be equal to 0x60.
+    int16_t next_alloc_start_pos; // 0x150A
+    int16_t field8_0x150c;
+    undefined field9_0x150e;
+    undefined field10_0x150f;
+};
+ASSERT_SIZE(struct wan_table, 5392);
+
+// Store one boolean per vram bank
+struct vram_banks_set {
+    bool vram_A : 1;
+    bool vram_B : 1;
+    bool vram_C : 1;
+    bool vram_D : 1;
+    bool vram_E : 1;
+    bool vram_F : 1;
+    bool vram_G : 1;
+    bool vram_H : 1;
+    bool vram_I : 1;
+    uint8_t _unused : 7;
+};
+ASSERT_SIZE(struct vram_banks_set, 2);
+
+// Used as a parameter to SendAudioCommand. Includes data on which audio to play and how.
+struct audio_command {
+    // 0x0: Seems to be a value that marks the status of this entry. It's probably an enum, maybe a
+    // command ID. Seems to be 0 when the entry is not in use.
+    int status;
+    struct music_id_16 music_id; // 0x4: ID of the music to play
+    uint16_t volume;             // 0x6: Volume (0-255)
+    undefined2 field_0x8;
+    undefined field_0xA;
+    undefined field_0xB;
+    undefined field_0xC;
+    undefined field_0xD;
+    undefined field_0xE;
+    undefined field_0xF;
+    undefined field_0x10;
+    undefined field_0x11;
+    undefined field_0x12;
+    undefined field_0x13;
+    undefined field_0x14;
+    undefined field_0x15;
+    undefined field_0x16;
+    undefined field_0x17;
+    undefined field_0x18;
+    undefined field_0x19;
+    undefined field_0x1A;
+    undefined field_0x1B;
+    undefined field_0x1C;
+    undefined field_0x1D;
+    undefined field_0x1E;
+    undefined field_0x1F;
+};
+ASSERT_SIZE(struct audio_command, 32);
 
 // TODO: Add more data file structures, as convenient or needed, especially if the load address
 // or pointers to the load address are known.

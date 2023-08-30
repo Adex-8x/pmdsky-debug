@@ -122,7 +122,17 @@ enum trap_id {
     TRAP_RANDOM_TRAP = 23,
     TRAP_GRUDGE_TRAP = 24,
     // Used in fixed room data to indicate that a trap shouldn't be placed on the current tile
+    // Also used to indicate a random non-wonder tile trap should be selected instead during play
     TRAP_NONE = 25,
+    TRAP_0x1A = 26,
+    TRAP_0x1B = 27,
+    TRAP_0x1C = 28,
+    TRAP_0x1D = 29,
+    TRAP_0x1E = 30,
+    TRAP_0x1F = 31,
+    // Behaves identically to a normal pitfall trap, but uses the sprite where the grate is
+    // already broken. TRAP_PITFALL_TRAP becomes this one when something falls through.
+    TRAP_BROKEN_PITFALL_TRAP = 32,
 };
 
 // This is usually stored as an 8-bit integer
@@ -456,18 +466,19 @@ enum damage_message {
     DAMAGE_MESSAGE_PERISH_SONG = 11,
     DAMAGE_MESSAGE_DESTINY_BOND = 12,
     DAMAGE_MESSAGE_SLUDGE = 13, // "Was showered with sludge for X damage"
-    DAMAGE_MESSAGE_CHESTNUT_1 = 14,
-    DAMAGE_MESSAGE_CHESTNUT_2 = 15, // Same string as DAMAGE_MESSAGE_CHESTNUT_1
-    DAMAGE_MESSAGE_UNK16 = 16,      // Same string as DAMAGE_MESSAGE_MOVE
-    DAMAGE_MESSAGE_BAD_WEATHER = 17,
-    DAMAGE_MESSAGE_MISSED_MOVE = 18, // Damage taken from moves that hurt the user when they miss
-    DAMAGE_MESSAGE_RECOIL_2 = 19,    // Same string as DAMAGE_MESSAGE_RECOIL_1
-    DAMAGE_MESSAGE_STEALTH_ROCK = 20,
-    DAMAGE_MESSAGE_TOXIC_SPIKES = 21,
-    DAMAGE_MESSAGE_ALMOST_FAINTED = 22, // "Is on the verge of fainting after using that move"
-    DAMAGE_MESSAGE_UNK_ABILITY = 23,    // "Took X damage because of <ability>"
-    DAMAGE_MESSAGE_SOLAR_POWER = 24,
-    DAMAGE_MESSAGE_DRY_SKIN = 25,
+    DAMAGE_MESSAGE_HUNGER = 14, // No string associated with hunger, uses 0x0.
+    DAMAGE_MESSAGE_CHESTNUT_1 = 15,
+    DAMAGE_MESSAGE_CHESTNUT_2 = 16,   // Same string as DAMAGE_MESSAGE_CHESTNUT_1
+    DAMAGE_MESSAGE_PITFALL_TRAP = 17, // Same string as DAMAGE_MESSAGE_MOVE
+    DAMAGE_MESSAGE_BAD_WEATHER = 18,
+    DAMAGE_MESSAGE_MISSED_MOVE = 19, // Damage taken from moves that hurt the user when they miss
+    DAMAGE_MESSAGE_RECOIL_2 = 20,    // Same string as DAMAGE_MESSAGE_RECOIL_1
+    DAMAGE_MESSAGE_STEALTH_ROCK = 21,
+    DAMAGE_MESSAGE_TOXIC_SPIKES = 22,
+    DAMAGE_MESSAGE_ALMOST_FAINTED = 23, // "Is on the verge of fainting after using that move"
+    DAMAGE_MESSAGE_BAD_DREAMS = 24,     // "Took X damage because of <ability>"
+    DAMAGE_MESSAGE_SOLAR_POWER = 25,
+    DAMAGE_MESSAGE_DRY_SKIN = 26,
 };
 
 // Exclusive effect ID. These are usually encoded as bitvectors.
@@ -840,7 +851,8 @@ ENUM_8_BIT(mission_status);
 
 // The cause of a monster taking damage, not including the move case.
 // These codes should all be greater than any move ID.
-// Some of the values are used as faint reasons rather than damage sources.
+// Some of the values are used as faint reasons or on the "The Last Outing" screen
+// rather than as damage sources.
 enum damage_source_non_move {
     DAMAGE_SOURCE_TRANSFORM_FRIEND = 563, // "was transformed into a friend"
     DAMAGE_SOURCE_NOT_BEFRIENDED = 564,   // "left without being befriended"
@@ -906,12 +918,34 @@ enum damage_source_non_move {
     DAMAGE_SOURCE_BAD_DREAMS = 622,
     DAMAGE_SOURCE_EXPLOSION = 623,
     DAMAGE_SOURCE_OREN_BERRY = 624,
+    DAMAGE_SOURCE_DUMMY_625 = 625,
+    DAMAGE_SOURCE_DUMMY_626 = 626,
+    DAMAGE_SOURCE_DUMMY_627 = 627,
+    DAMAGE_SOURCE_DUMMY_628 = 628,
+    DAMAGE_SOURCE_DUMMY_629 = 629,
+    DAMAGE_SOURCE_DUMMY_630 = 630,
+    DAMAGE_SOURCE_DUMMY_631 = 631,
+    DAMAGE_SOURCE_DUMMY_632 = 632,
+    DAMAGE_SOURCE_ESCAPE = 633,           // "Escaped in the middle of exploration"
+    DAMAGE_SOURCE_DUNGEON_CLEAR = 634,    // "cleared the dungeon"
+    DAMAGE_SOURCE_RESCUE_SUCCESS = 635,   // "succeeded in the rescue mission"
+    DAMAGE_SOURCE_MISSION_COMPLETE = 636, // "completed a mission! Impressive!"
+    DAMAGE_SOURCE_BEFRIEND_MEW = 637,     // "befriended [CS:N]Mew[CR]!"
 };
+
+// This is usually stored as a 16-bit integer
+#pragma pack(push, 2)
+ENUM_16_BIT(damage_source_non_move);
+#pragma pack(pop)
 
 // Possible reasons why a monster can take damage or faint
 union damage_source {
     enum move_id move;
     enum damage_source_non_move other;
+};
+union damage_source_16 {
+    struct move_id_16 move;
+    struct damage_source_non_move_16 other;
 };
 
 // List of reasons why you can get forcefully kicked out of a dungeon
@@ -1204,6 +1238,53 @@ enum fixed_room_id {
 ENUM_8_BIT(fixed_room_id);
 #pragma pack(pop)
 
+// Action IDs used to spawn tiles when generating fixed rooms
+enum fixed_room_action_non_entity {
+    FIXED_ACTION_FLOOR_ROOM = 0,
+    FIXED_ACTION_WALL_HALLWAY_AM = 1, // Hallway wall, breakable with Absolute Mover IQ skill
+    FIXED_ACTION_WALL_HALLWAY_IMPASSABLE = 2,
+    FIXED_ACTION_WALL_HALLWAY = 3,
+    FIXED_ACTION_LEADER_SPAWN = 4,
+    FIXED_ACTION_SECONDARY_ROOM = 5, // Secondary terrain tile, part of a room
+    FIXED_ACTION_CHASM_HALLWAY = 6,
+    // If spawned, all tiles outside the fixed room are are turned into impassable chasm tiles
+    FIXED_ACTION_CHASM_ALL_HALLWAY = 7,
+    FIXED_ACTION_WARP_ZONE_ROOM = 8, // Spawns a warp zone
+    FIXED_ACTION_FLOOR_HALLWAY = 9,
+    FIXED_ACTION_CHASM_HALLWAY_IMPASSABLE = 10,
+    FIXED_ACTION_FLOOR_HALLWAY_FLAG_10 = 11, // Enables tile::terrain_flags_unk10
+    // Wall if fixed floor ID < FIXED_SEALED_CHAMBER, floor otherwise. Spawns a locked key door.
+    FIXED_ACTION_FLOOR_WALL_ROOM_KEY_DOOR_LOCKED = 12,
+    // Wall if fixed floor ID < FIXED_SEALED_CHAMBER, floor otherwise. Spawns a locked escort
+    // key door.
+    FIXED_ACTION_FLOOR_WALL_ROOM_KEY_DOOR_ESCORT = 13,
+    FIXED_ACTION_WALL_HALLWAY_IMPASSABLE_14 = 14,
+    FIXED_ACTION_WALL_HALLWAY_15 = 15,
+    FIXED_ACTION_TEAM_MEMBER_2_SPAWN = 96,
+    FIXED_ACTION_TEAM_MEMBER_3_SPAWN = 97,
+    FIXED_ACTION_TEAM_MEMBER_4_SPAWN = 98,
+    // Treated separately by the code, but doesn't seem to spawn anything special
+    FIXED_ACTION_FLOOR_ROOM_99 = 99,
+    FIXED_ACTION_WARP_ZONE_ROOM_107 = 107, // Same as FIXED_ACTION_WARP_ZONE_ROOM
+    // Treated separately by the code, but doesn't seem to spawn anything special
+    FIXED_ACTION_FLOOR_ROOM_108 = 108,
+    // Treated separately by the code, but doesn't seem to spawn anything special
+    FIXED_ACTION_FLOOR_ROOM_109 = 109,
+};
+
+// This is usually stored as an 8-bit integer
+#pragma pack(push, 1)
+ENUM_8_BIT(fixed_room_action_non_entity);
+#pragma pack(pop)
+
+// Used to determine an action that will be performed when spawining a single tile during fixed
+// room generation. Can spawn an entity or a tile.
+union fixed_room_action {
+    struct fixed_room_action_non_entity_8 tile_action;
+    // If specified, this value - 16 represents the ID of the fixed entity to spawn.
+    uint8_t entity_action;
+};
+
 // Floor layout size during floor generation
 enum floor_size {
     FLOOR_SIZE_LARGE = 0,
@@ -1247,6 +1328,61 @@ enum gen_item_stickiness {
     GEN_ITEM_STICKY_RANDOM = 0,
     GEN_ITEM_STICKY_ALWAYS = 1,
     GEN_ITEM_STICKY_NEVER = 2,
+};
+
+// Used to determine which version of a dungeon to load.
+enum game_id {
+    GAME_SKY = 0,
+    GAME_TIME = 1,
+    GAME_DARKNESS = 2,
+};
+
+// Used when determining how a monster's name should be displayed.
+enum display_name_type {
+    DISPLAY_NAME_NORMAL = 0,  // Display the name as usual
+    DISPLAY_NAME_UNKNOWN = 1, // Display "(?)"
+    DISPLAY_NAME_DECOY = 2,   // Display "Decoy"
+};
+
+// Used to more easily refer to the different item spawn lists of a floor
+enum item_list_type {
+    ITEM_LIST_REGULAR = 0,       // Standard list
+    ITEM_LIST_SHOP = 1,          // Kecleon shop list
+    ITEM_LIST_MONSTER_HOUSE = 2, // Monster house list
+    ITEM_LIST_BURIED = 3,        // Buried items list
+    ITEM_LIST_BAZAAR = 4,        // Bazaar grab bag list
+    ITEM_LIST_SECRET_ROOM = 5,   // Secret room chests list
+};
+
+// Special values for union item_index
+enum item_index_special {
+    ITEM_INDEX_GROUND = 0x80,
+    ITEM_INDEX_HELD = 0x81,
+    ITEM_INDEX_UNK_0x82 = 0x82,
+    ITEM_INDEX_UNK_0x83 = 0x83,
+    ITEM_INDEX_UNK_0x84 = 0x84,
+    ITEM_INDEX_UNK_0x85 = 0x85,
+    ITEM_INDEX_UNK_0x86 = 0x86,
+    ITEM_INDEX_UNK_0x87 = 0x87,
+    ITEM_INDEX_UNK_0x88 = 0x88,
+    ITEM_INDEX_UNK_0x89 = 0x89,
+    ITEM_INDEX_UNK_0x8A = 0x8A,
+    ITEM_INDEX_UNK_0x8B = 0x8B,
+    ITEM_INDEX_UNK_0x8C = 0x8C,
+    ITEM_INDEX_UNK_0x8D = 0x8D,
+    ITEM_INDEX_UNK_0x8E = 0x8E,
+    ITEM_INDEX_UNK_0x8F = 0x8F,
+    ITEM_INDEX_HELD_TEAM_MEMBER_1 = 0x90,
+    ITEM_INDEX_HELD_TEAM_MEMBER_2 = 0x91,
+    ITEM_INDEX_HELD_TEAM_MEMBER_3 = 0x92,
+    ITEM_INDEX_HELD_TEAM_MEMBER_4 = 0x93,
+};
+
+// Used to indicate the location of an item, which can be an item in the bag, on the floor or
+// held by a certain monster.
+union item_index {
+    int bag_index;                         // For items in the bag
+    enum item_index_special special_index; // For other items
 };
 
 #endif

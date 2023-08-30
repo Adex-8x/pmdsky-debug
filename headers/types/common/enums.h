@@ -3,6 +3,15 @@
 #ifndef HEADERS_TYPES_COMMON_ENUMS_H_
 #define HEADERS_TYPES_COMMON_ENUMS_H_
 
+// Represents one of the two screens the console has. Each screen is linked
+// to a single graphics engine, but which engine it is linked to isn't fixed.
+// Thus, instead of using "lower" and "upper", we use "main" and "sub" screens
+// We need to differentiate them because each engine has different abilities
+enum screen {
+    SCREEN_MAIN = 0, // The screen linked to the main graphics engine (A)
+    SCREEN_SUB = 1,  // The screen linked to the sub graphics engine (B)
+};
+
 // Overlay group ID. Each group ID maps to an overlay number.
 enum overlay_group_id {
     OGROUP_NONE = 0,
@@ -72,12 +81,13 @@ enum texture_format {
 
 // Values for GAME_MODE
 enum game_mode {
-    GAME_MODE_MENU = 0, // top menu
-    GAME_MODE_1 = 1,
+    GAME_MODE_MENU = 0,            // top menu
+    GAME_MODE_1 = 1,               // also related to special episodes? But 3 is the main one
     GAME_MODE_NORMAL = 2,          // normal play, including both overworld/dungeons
     GAME_MODE_SPECIAL_EPISODE = 3, // during special episodes
     // Pelipper Island (and likely also in the dungeon while rescuing, need to confirm)
     GAME_MODE_RESCUE = 4,
+    GAME_MODE_5 = 5,
     // Possibly more?
 };
 
@@ -705,6 +715,36 @@ enum monster_id {
 // This is usually stored as a 16-bit integer
 #pragma pack(push, 2)
 ENUM_16_BIT(monster_id);
+#pragma pack(pop)
+
+// Emotion for portraits
+enum portrait_emotion {
+    PORTRAIT_NONE = -2,
+    PORTRAIT_NORMAL = 0,
+    PORTRAIT_HAPPY = 1,
+    PORTRAIT_PAIN = 2,
+    PORTRAIT_ANGRY = 3,
+    PORTRAIT_WORRIED = 4,
+    PORTRAIT_SAD = 5,
+    PORTRAIT_CRYING = 6,
+    PORTRAIT_SHOUTING = 7,
+    PORTRAIT_TEARY_EYED = 8,
+    PORTRAIT_DETERMINED = 9,
+    PORTRAIT_JOYOUS = 10,
+    PORTRAIT_INSPIRED = 11,
+    PORTRAIT_SURPRISED = 12,
+    PORTRAIT_DIZZY = 13,
+    PORTRAIT_SPECIAL0 = 14,
+    PORTRAIT_SPECIAL1 = 15,
+    PORTRAIT_SIGH = 16,
+    PORTRAIT_STUNNED = 17,
+    PORTRAIT_SPECIAL2 = 18,
+    PORTRAIT_SPECIAL3 = 19,
+};
+
+// This is usually stored as an 8-bit integer
+#pragma pack(push, 1)
+ENUM_8_BIT(portrait_emotion);
 #pragma pack(pop)
 
 // Item ID
@@ -3331,6 +3371,15 @@ enum dungeon_group_id {
 ENUM_8_BIT(dungeon_group_id);
 #pragma pack(pop)
 
+// Used to keep track of whether a dungeon has been cleared or not and whether it's accessible or
+// not.
+enum dungeon_mode {
+    DMODE_CLOSED = 0,           // Dungeon is locked and uncleared
+    DMODE_OPEN = 1,             // Dungeon is unlocked and uncleared
+    DMODE_REQUEST = 2,          // Dungeon has been cleared, but cannot be directly accessed
+    DMODE_OPEN_AND_REQUEST = 3, // Dunegon is unlocked and cleared
+};
+
 // Music/song IDs. Some background SFX are also stored as "songs".
 enum music_id {
     MUSIC_NONE_0x0 = 0,
@@ -3647,6 +3696,87 @@ enum monster_gender {
     GENDER_MALE = 1,
     GENDER_FEMALE = 2,
     GENDER_GENDERLESS = 3,
+};
+
+enum mission_rank {
+    MISSION_RANK_E = 1,
+    MISSION_RANK_D = 2,
+    MISSION_RANK_C = 3,
+    MISSION_RANK_B = 4,
+    MISSION_RANK_A = 5,
+    MISSION_RANK_S = 6,
+    MISSION_RANK_1_STAR = 7,
+    MISSION_RANK_2_STAR = 8,
+    MISSION_RANK_3_STAR = 9,
+    MISSION_RANK_4_STAR = 10,
+    MISSION_RANK_5_STAR = 11,
+    MISSION_RANK_6_STAR = 12,
+    MISSION_RANK_7_STAR = 13,
+    MISSION_RANK_8_STAR = 14,
+    MISSION_RANK_9_STAR = 15,
+};
+
+// This is usually stored as an 8-bit integer
+#pragma pack(push, 1)
+ENUM_8_BIT(mission_rank);
+#pragma pack(pop)
+
+enum portrait_canvas_state {
+    PORTRAIT_CANVAS_HIDDEN = 0,
+    PORTRAIT_CANVAS_TRY_UPDATE = 1,
+    PORTRAIT_CANVAS_UPDATE = 2,
+    PORTRAIT_CANVAS_STANDBY = 3,
+    PORTRAIT_CANVAS_HIDE = 4,
+};
+
+enum wan_source_type {
+    WAN_SOURCE_NULL = 0,
+    WAN_SOURCE_FILE = 1, // Directly loaded from a .wan
+    WAN_SOURCE_PACK = 2, // Loaded from a pack file
+};
+
+// This is usually stored as an 8-bit integer
+#pragma pack(push, 1)
+ENUM_8_BIT(wan_source_type);
+#pragma pack(pop)
+
+// Flags listed in the debug menu
+enum debug_flag {
+    DEBUG_FLAG_TEXT_SPEEDUP = 0,    // Increases text speed (x4)
+    DEBUG_FLAG_NO_SCREEN_FADE = 1,  // The screen doesn't fade to black when it's supposed to
+    DEBUG_FLAG_SOUND_OFF = 2,       // Disables all sounds?
+    DEBUG_FLAG_BGM_OFF = 3,         // Background music won't be played
+    DEBUG_FLAG_SE_OFF = 4,          // Sound effects won't be played
+    DEBUG_FLAG_STAGE_NPC_DUMMY = 5, // Unknown purpose
+    // Was supposed to throw an error if text overflowed the textbox it was contained in, but it
+    // does nothing in the final game.
+    DEBUG_FLAG_TEXT_LIMIT_CHECK = 6,
+    DEBUG_FLAG_NO_CHEAT_CHECK = 7,             // Unknown purpose
+    DEBUG_FLAG_NO_PLUNGE_CHECK = 8,            // Unknown purpose
+    DEBUG_FLAG_DUNGEON_INFINITE_COMEBACK = 10, // Unknown purpose
+    DEBUG_FLAG_GENERAL_DEBUG = 11,             // Enables debug menus
+    // Allows manually overriding the results of a dungeon expedition
+    DEBUG_FLAG_EDIT_MODE = 12,
+};
+
+// Logging flags listed in the debug menu. They enable certain kinds of debug logging.
+enum debug_log_flag {
+    DEBUG_LOG_FLAG_DUNGEON = 0,
+    DEBUG_LOG_FLAG_GROUND = 1,
+    DEBUG_LOG_FLAG_SCRIPT = 2,
+    DEBUG_LOG_FLAG_SCRIPT_DEBUG = 3,
+    DEBUG_LOG_FLAG_SCRIPT_SUPERVISION = 4,
+    DEBUG_LOG_FLAG_SCRIPT_COMMAND = 5,
+    DEBUG_LOG_FLAG_SOUND = 6,
+    DEBUG_LOG_FLAG_BGM = 7,
+    DEBUG_LOG_FLAG_SE = 8,
+    DEBUG_LOG_FLAG_FLAG = 10,
+    DEBUG_LOG_FLAG_FILE = 11,
+    DEBUG_LOG_FLAG_MEMORY = 12,
+    DEBUG_LOG_FLAG_BACKUP = 13,
+    DEBUG_LOG_FLAG_THREAD = 14,
+    DEBUG_LOG_FLAG_KERNEL = 15,
+    DEBUG_LOG_FLAG_PERFORMANCE = 16,
 };
 
 #endif

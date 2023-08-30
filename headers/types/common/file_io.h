@@ -19,15 +19,6 @@ struct rect16_xywh {
 };
 ASSERT_SIZE(struct rect16_xywh, 8);
 
-// The fact the 4th byte is never used hints to the fact the struct is packed
-struct rgb {
-    uint8_t r;
-    uint8_t b;
-    uint8_t g;
-    uint8_t unused;
-};
-ASSERT_SIZE(struct rgb, 4);
-
 // A structure that represents a file stream for file I/O.
 struct file_stream {
     undefined4 field_0x0;
@@ -134,10 +125,24 @@ struct wte_header {
         needs to be a power of 2 in the range of 8..1024. The actual texture can have a lower
         height, but not a lower width, as the width is required to properly read the image */
     struct rect16_xywh texture_bounds; // 0x10
-    struct rgb* palette;               // 0x18
+    struct rgba* palette;              // 0x18
     uint16_t color_amt;                // 0x1C: How many colors are stored in the palette
     uint16_t _padding_0x1e;
 };
 ASSERT_SIZE(struct wte_header, 32);
+
+struct bg_list_entry_sub_struct {
+    char name[10]; // Null-terminated string
+};
+ASSERT_SIZE(struct bg_list_entry_sub_struct, 10);
+
+// Represents an entry in the bg_list.dat file, after being loaded by LoadBgListEntry
+struct bg_list_entry {
+    struct bg_list_entry_sub_struct bpl;
+    struct bg_list_entry_sub_struct bpc;
+    struct bg_list_entry_sub_struct bma;
+    struct bg_list_entry_sub_struct others_bpa[8];
+};
+ASSERT_SIZE(struct bg_list_entry, 110);
 
 #endif

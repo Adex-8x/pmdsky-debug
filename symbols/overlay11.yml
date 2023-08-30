@@ -146,6 +146,11 @@ overlay11:
       description: |-
         The GetAllocArena function used for ground mode. See SetMemAllocatorParams for more information.
         
+        For (flags & 0xFF):
+          8, 15, 16: GROUND_MEMORY_ARENA_1
+          14: GROUND_MEMORY_ARENA_2
+          other: null (default arena)
+        
         r0: initial memory arena pointer, or null
         r1: flags (see MemAlloc)
         return: memory arena pointer, or null
@@ -213,10 +218,13 @@ overlay11:
         NA: 0x22EBB40
         JP: 0x22ED174
       description: |-
-        Note: unverified, ported from Irdkwia's notes
+        Open and read an entry from the MAP_BG/bg_list.dat
         
-        r0: [output] bg_attr_str
-        r1: bg_id
+        Documentation on this format can be found here:
+        https://github.com/SkyTemple/skytemple-files/tree/55b3017631a8a1b0f106111ef91a901dc394c6df/skytemple_files/graphics/bg_list_dat
+        
+        r0: [output] The entry
+        r1: background ID
     - name: LoadMapType10
       address:
         EU: 0x22ED664
@@ -303,6 +311,7 @@ overlay11:
         r2: flags
     - name: InitAnimDataFromOtherAnimDataVeneer
       address:
+        EU: 0x22F78A8
         NA: 0x22F6F0C
       description: |-
         Likely a linker-generated veneer for InitAnimDataFromOtherAnimData.
@@ -313,6 +322,9 @@ overlay11:
         r1: src
     - name: AnimRelatedFunction
       address:
+        EU:
+          - 0x22F78B4
+          - 0x22F7A04
         NA:
           - 0x22F6F14
           - 0x22F7064
@@ -321,6 +333,52 @@ overlay11:
         
         r0: animation pointer?
         others: ?
+    - name: AllocAndInitPartnerFollowDataAndLiveActorList
+      address:
+        EU: 0x22F865C
+      description: |-
+        Allocate and initialize the partner follow data and the live actor list (in GROUND_STATE_PTRS)
+        
+        No params.
+    - name: InitPartnerFollowDataAndLiveActorList
+      address:
+        EU: 0x22F86B8
+      description: |-
+        Initialize the partner follow data and the live actor list (in GROUND_STATE_PTRS, doesn’t perform the allocation of the structures)
+        
+        No params.
+    - name: DeleteLiveActor
+      address:
+        EU: 0x22F8F18
+      description: |-
+        Remove the actor from the overworld actor list (in GROUND_STATE_PTRS)
+        
+        r0: the index of the actor in the live actor list
+    - name: InitPartnerFollowData
+      address:
+        EU: 0x22FC3C8
+      description: |-
+        Initialize the partner follow data structure, without allocating it (in GROUND_STATE_PTRS)
+        
+        No params.
+    - name: GetDirectionLiveActor
+      address:
+        EU: 0x22FDB48
+      description: |-
+        Put the direction of the actor in the destination
+        
+        r0: live actor
+        r1: destination address (1 byte)
+    - name: SetDirectionLiveActor
+      address:
+        EU: 0x22FDB58
+      description: |-
+        Store the direction in the actor structure
+        -1 input is ignored
+        Unsure if this change the animation
+        
+        r0: live actor
+        r1: direction
     - name: SprintfStatic
       address:
         EU: 0x2309868
@@ -333,6 +391,45 @@ overlay11:
         r1: format
         ...: variadic
         return: number of characters printed, excluding the null-terminator
+    - name: GetExclusiveItemRequirements
+      address:
+        EU: 0x230B8D4
+        NA: 0x230AF38
+      description: |-
+        Used to calculate the items required to get a certain exclusive item in the swap shop.
+        
+        r0: ?
+        r1: ?
+    - name: GetDungeonMapPos
+      address:
+        EU: 0x230F6E4
+        NA: 0x230ED48
+      description: |-
+        Checks if a dungeon should be displayed on the map and the position where it should be displayed if so.
+        
+        r0: [Output] Buffer where the coordinates of the map marker will be stored. The coordinates are shifted 8 bits to the left, so they are probably fixed-point numbers instead of integers.
+        r1: Dungeon ID
+        return: True if the dungeon should be displayed on the map, false otherwise.
+    - name: WorldMapSetMode
+      address:
+        EU: 0x230F9A0
+        NA: 0x230F004
+      description: |-
+        Function called by the script function "worldmap_SetMode"
+        Define the mode of the world map, which can among other things be used to decide if the player character should appear on the world map
+        The mode is set even if no world map is set
+        
+        r0: world map mode
+    - name: WorldMapSetCamera
+      address:
+        EU: 0x230FA60
+        NA: 0x230F0C4
+      description: |-
+        Function called with the script function "worldmap_SetCamera".
+        Set the map marker the world map should try to center on (while still ensuring it doesn't go over the background border)
+        Has no effect if no map is currently set
+        
+        r0: map marker id
     - name: StatusUpdate
       address:
         EU: 0x2314478
@@ -513,6 +610,10 @@ overlay11:
         EU: 0x2325800
         NA: 0x2324CC0
       description: "[Runtime]"
+    - name: GROUND_STATE_WEATHER
+      address:
+        EU: 0x232580C
+      description: "[Runtime] Same structure format as GROUND_STATE_MAP"
     - name: GROUND_STATE_PTRS
       address:
         EU: 0x2325834
@@ -524,3 +625,11 @@ overlay11:
         Host pointers to multiple structure used for performing an overworld scene
         
         type: struct main_ground_data
+    - name: WORLD_MAP_MODE
+      address:
+        EU: 0x2325924
+        NA: 0x2324DE4
+      length:
+        EU: 0x4
+        NA: 0x4
+      description: The current world map
