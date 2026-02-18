@@ -125,6 +125,7 @@ typedef void (*thread_entry_fn_t)(void);
 // Specifies a function called when a thread exits
 typedef void (*thread_exit_fn_t)(void);
 
+#pragma pack(4)
 struct cp_context {
     uint64_t div_numer;
     uint64_t div_denom;
@@ -133,6 +134,7 @@ struct cp_context {
     uint16_t sqrt_mode;
 };
 ASSERT_SIZE(struct cp_context, 28);
+#pragma pack(pop)
 
 struct os_context {
     uint32_t cpsr;
